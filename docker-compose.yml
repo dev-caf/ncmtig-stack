@@ -1,0 +1,72 @@
+version "3.9"
+services:
+  web:
+    image: nginx
+    container_name: nginx
+    restart: always
+    depends_on:
+      - mosquitto
+      - influxdb
+      - telegraf
+      - grafana
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - ./nginx/public:/var/www/html
+      - ./nginx/conf.d:/etc/nginx/conf.d
+      - ./nginx/certbot/conf:/etc/nginx/ssl
+      - ./nginx/certbot/data:/var/www/certbot
+  certbot:
+    image: certbot/certbot
+    commnad: certonly --webroot --webroot-path=/var/www/certbot --email lphuard@borealbikes.com --agree-tos --no-eff-email -d bikegraf.borealbikes.de
+    container_name: certbot
+    depends_on:
+      - nginx
+    volumes: 
+      - ./nginx/certbot/conf:/etc/letsencrypt
+      - ./nginx/certbot/logs:/var/log/letsencrypt
+      - ./nginx/certbot/data:/var/www/certbot
+  mosquitto:
+    image: eclipse-mosquitto
+    container_name: mosquitto
+    ports:
+      - 1883:1883
+      - 9001:9001
+    volumes:
+      - ./mmosquitto/config:/mosquitto/config
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+  influxdb:
+    image: influxdb:2.0.6
+    container_name: influxdb
+    ports:
+      - 8086:8086
+    volumes:
+      - influxdbv2:/var/lib/influxdb2
+  influxdb_cli:
+    links: 
+      - influxdb
+    image: influxdb:2.0.6
+    entrypoint: influx setup --org stack-org --bucket stack-bucket --username admin --password secretpassword --token influxdbtoken--force
+    restart: on-failure:10
+    depends_on:
+      - influxdb
+  telegraf:
+    image: telegraf
+    container_name: telegraf
+    links: 
+      - influxdb
+    volumes:
+      ./telegraf/telegraf.conf:/etc/telegraf/telegraf.conf
+    depends_on:
+      - influxdb_cli
+  grafana: 
+    image: grafana/grafana
+    container_name: grafana
+    ports:
+      - 3000:3000
+volumes:
+  influxdbv2:
+
+  
